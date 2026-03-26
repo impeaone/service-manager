@@ -5,6 +5,7 @@ import (
 	"ServiceManager/internal/repository"
 	"ServiceManager/internal/transport/dto"
 	"ServiceManager/pkg/utils"
+	"context"
 	"time"
 )
 
@@ -38,7 +39,43 @@ func (s *ServiceManager) CreateService(resp dto.ServiceResponse) (*domain.Servic
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	if err := s.repo.Create(service); err != nil {
+	if err := s.repo.Create(context.TODO(), service); err != nil {
+		return nil, err
+	}
+
+	return service, nil
+}
+
+func (s *ServiceManager) UpdateService(resp dto.ServiceResponse) (*domain.Service, error) {
+	webhooks := make([]domain.WebHook, len(resp.WebHooks))
+
+	for i, respHook := range resp.WebHooks {
+		var id = respHook.ID
+		// TODO норм валидацию надо
+		if respHook.ID == "" || respHook.ID == "null" {
+			id = utils.GenerateUUID()
+		}
+
+		webhooks[i] = domain.WebHook{
+			ID:         id,
+			Name:       respHook.Name,
+			Path:       respHook.Path,
+			Type:       domain.WebHookType(respHook.Type),
+			Method:     respHook.Method,
+			Executions: respHook.Executions,
+			LastCall:   time.Now(),
+		}
+	}
+	service := &domain.Service{
+		ID:        resp.ID,
+		Name:      resp.Name,
+		Status:    domain.ServiceStatus(resp.Status),
+		WebHooks:  webhooks,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := s.repo.Update(service); err != nil {
 		return nil, err
 	}
 
@@ -57,29 +94,29 @@ func (s *ServiceManager) DeleteService(serviceID string) error {
 	return s.repo.Delete(serviceID)
 }
 
-func (s *ServiceManager) ExecuteWebHook(serviceID, path, method string) (*domain.WebHook, error) {
+func (s *ServiceManager) IncrementWebHook(serviceID, webhookID string) bool {
 	service, err := s.repo.GetByID(serviceID)
 	if err != nil {
-		return nil, err
+		return false
 	}
 
 	// Находим веб-хук по пути
 	var targetHook *domain.WebHook
 	for _, hook := range service.WebHooks {
-		if hook.Path == path && hook.Method == method {
+		if hook.ID == webhookID {
 			targetHook = &hook
 			break
 		}
 	}
 
 	if targetHook == nil {
-		return nil, repository.ServiceNotFoundError
+		return false
 	}
 
 	// Инкрементируем счетчик вызовов
 	if err = s.repo.IncrementWebHookExecutions(serviceID, targetHook.ID); err != nil {
-		return nil, err
+		return false
 	}
 
-	return targetHook, nil
+	return true
 }

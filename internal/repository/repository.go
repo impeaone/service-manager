@@ -2,15 +2,16 @@ package repository
 
 import (
 	"ServiceManager/internal/domain"
-	"errors"
+	"context"
+	"fmt"
 )
 
 var (
-	ServiceNotFoundError = errors.New("service not found")
+	ServiceNotFoundError = fmt.Errorf("service not found")
 )
 
 type ServiceRepository interface {
-	Create(service *domain.Service) error
+	Create(cxt context.Context, service *domain.Service) error
 	GetByID(serviceID string) (*domain.Service, error)
 	GetAll() ([]*domain.Service, error)
 	Update(service *domain.Service) error

@@ -1,5 +1,3 @@
--- 000001.sqlite.sql
-
 CREATE TABLE IF NOT EXISTS services (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

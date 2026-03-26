@@ -7,7 +7,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"sync"
 )
 
 type WebHookServer struct {
@@ -15,8 +14,6 @@ type WebHookServer struct {
 	server   *http.Server
 	logger   *slog.Logger
 	cfg      *config.Config
-	closeCh  chan struct{}
-	cons     *sync.WaitGroup
 	ctx      context.Context
 }
 
@@ -24,15 +21,21 @@ func NewWebHookServer(ctx context.Context, handls *handler.APIHandler) *WebHookS
 	logger := ctx.Value("logger").(*slog.Logger)
 	cfg := ctx.Value("config").(*config.Config)
 
-	closeChan := make(chan struct{})
-	cons := new(sync.WaitGroup)
-
 	router := http.NewServeMux()
-	router.HandleFunc("GET /api/services", handls.GetServices)
+
+	router.HandleFunc("POST /api/service", handls.AddService)
 	router.HandleFunc("GET /api/service/{service_id}", handls.GetService)
+	router.HandleFunc("PUT /api/service", handls.UpdateService)
 	router.HandleFunc("DELETE /api/service/{service_id}", handls.DeleteService)
-	router.HandleFunc("POST /api/services", handls.AddService)
-	router.HandleFunc("GET /api/services/execute", handls.ExecuteWebHook)
+	router.HandleFunc("GET /api/services", handls.GetServices)
+
+	router.HandleFunc("POST /api/services/execute", handls.ExecuteWebHook)
+
+	router.HandleFunc("POST /api/auth/register", func(writer http.ResponseWriter, request *http.Request) {})
+	router.HandleFunc("POST /api/auth/login", func(writer http.ResponseWriter, request *http.Request) {})
+	router.HandleFunc("POST /api/auth/refresh", func(writer http.ResponseWriter, request *http.Request) {})
+	router.HandleFunc("POST /api/auth/logout", func(writer http.ResponseWriter, request *http.Request) {})
+	router.HandleFunc("POST /api/auth/verify", func(writer http.ResponseWriter, request *http.Request) {})
 
 	routerWithMiddleware := middleware.PanicMiddleware(logger)(
 		middleware.Logger(logger)(router),
@@ -47,8 +50,6 @@ func NewWebHookServer(ctx context.Context, handls *handler.APIHandler) *WebHookS
 		handlers: handls,
 		server:   server,
 		logger:   logger,
-		closeCh:  closeChan,
-		cons:     cons,
 		ctx:      ctx,
 		cfg:      cfg,
 	}

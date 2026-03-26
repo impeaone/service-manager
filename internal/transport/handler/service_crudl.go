@@ -17,7 +17,7 @@ import (
 
 const DefaultRequestTimeout = time.Second * 10
 
-var HTMLinsteadJSON = fmt.Errorf("invalid character '<' looking for beginning of value")
+var ErrorHTMLinsteadJSON = fmt.Errorf("invalid character '<' looking for beginning of value")
 
 type APIHandler struct {
 	serviceManager service.ServiceManager
@@ -173,7 +173,53 @@ func (a *APIHandler) AddService(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	utils.SendJSON(w, newService, http.StatusOK)
+	utils.SendJSON(w, newServiceResponse, http.StatusOK)
+	return
+}
+
+func (a *APIHandler) UpdateService(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(r.Body)
+	defer func() { _ = r.Body.Close() }()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var servic dto.ServiceResponse
+	if err = json.Unmarshal(data, &servic); err != nil {
+		resp := map[string]interface{}{"error": err.Error()}
+		utils.SendJSON(w, resp, http.StatusBadRequest)
+		return
+	}
+
+	updService, err := a.serviceManager.UpdateService(servic)
+	if err != nil {
+		resp := map[string]interface{}{"error": err.Error()}
+		utils.SendJSON(w, resp, http.StatusBadRequest)
+		return
+	}
+
+	var updServiceResponse = dto.ServiceResponse{
+		ID:        updService.ID,
+		Name:      updService.Name,
+		Status:    string(updService.Status),
+		WebHooks:  make([]dto.WebHookResponse, len(updService.WebHooks)),
+		CreatedAt: updService.CreatedAt.String(),
+	}
+
+	for i, wh := range updService.WebHooks {
+		updServiceResponse.WebHooks[i] = dto.WebHookResponse{
+			ID:         wh.ID,
+			Name:       wh.Name,
+			Path:       wh.Path,
+			Type:       string(wh.Type),
+			Method:     wh.Method,
+			Executions: wh.Executions,
+			LastCalled: wh.LastCall.String(),
+		}
+	}
+
+	utils.SendJSON(w, updServiceResponse, http.StatusOK)
 	return
 }
 
@@ -205,6 +251,7 @@ func (a *APIHandler) ExecuteWebHook(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	hookID := targetWebHook.ID
 	hookPath := targetWebHook.Path
 	hookMethod := targetWebHook.Method
 
@@ -216,8 +263,7 @@ func (a *APIHandler) ExecuteWebHook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		// Просто инкрементирует количество вызовов
-		_, _ = a.serviceManager.ExecuteWebHook(serviceID, hookPath, hookMethod)
+		_ = a.serviceManager.IncrementWebHook(serviceID, hookID)
 	}()
 
 	utils.SendJSON(w, req, http.StatusOK)
@@ -253,7 +299,7 @@ func (a *APIHandler) webHookRequest(path, method string, body io.Reader) (dto.We
 		return dto.WebHookRequest{}, fmt.Errorf("request failed: %w", err)
 	case resp := <-respChan:
 		bodyReq, err := utils.ReadCloserToJSONMap(resp.Body)
-		if err != nil && !errors.As(err, &HTMLinsteadJSON) {
+		if err != nil && !errors.As(err, &ErrorHTMLinsteadJSON) {
 			return dto.WebHookRequest{}, err
 		}
 

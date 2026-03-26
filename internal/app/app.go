@@ -3,12 +3,13 @@ package app
 import (
 	"ServiceManager/internal/app/server"
 	"ServiceManager/internal/config"
-	"ServiceManager/internal/repository/memory_repository"
+	"ServiceManager/internal/repository/postgres"
 	"ServiceManager/internal/service/service_manager"
 	"ServiceManager/internal/transport/handler"
 	"ServiceManager/migration"
 	"ServiceManager/pkg/closer"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -32,16 +33,18 @@ func NewApp(ctx context.Context) *App {
 
 	clsr := closer.NewCloser(logger)
 
-	if err := migration.Migrate(ctx); err != nil {
+	if err := migration.Migrate(ctx); err != nil && !errors.As(err, &migration.ErrorNoChange) {
 		logger.Error("migration migrate failed", "err", err)
 		return nil
 	}
 
-	repo, err := memory_repository.NewMemoryRepository()
+	repo, err := postgres.InitPostgres(ctx)
 	if err != nil {
 		return nil
 	}
-	clsr.Add("repository", repo.Stop)
+	clsr.Add("repository", func(ctx context.Context) error {
+		return nil
+	})
 
 	service := service_manager.NewServiceManager(repo)
 

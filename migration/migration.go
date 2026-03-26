@@ -24,6 +24,8 @@ const dirPath = "."
 const postgresDB = "postgres"
 const sqliteDB = "sqlite3"
 
+var ErrorNoChange = fmt.Errorf("no change")
+
 func Migrate(ctx context.Context) error {
 	cfg, ok := ctx.Value("config").(*config.Config)
 	if !ok {
