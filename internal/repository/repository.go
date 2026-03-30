@@ -12,10 +12,17 @@ var (
 
 type ServiceRepository interface {
 	Create(cxt context.Context, service *domain.Service) error
-	GetByID(serviceID string) (*domain.Service, error)
-	GetAll() ([]*domain.Service, error)
-	Update(service *domain.Service) error
-	Delete(serviceID string) error
+	GetByID(ctx context.Context, serviceID string) (*domain.Service, error)
+	GetAll(ctx context.Context) ([]*domain.Service, error)
+	Update(ctx context.Context, service *domain.Service) error
+	Delete(ctx context.Context, serviceID string) error
 
-	IncrementWebHookExecutions(serviceID, hookID string) error
+	IncrementWebHookExecutions(ctx context.Context, serviceID, hookID string) error
+}
+
+type UserRepository interface {
+	Create(ctx context.Context, user *domain.User) error
+	GetByEmail(ctx context.Context, email string) (*domain.User, error)
+	GetByID(ctx context.Context, userID string) (*domain.User, error)
+	VerifyUser(ctx context.Context, email string) error
 }

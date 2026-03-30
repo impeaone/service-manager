@@ -4,7 +4,11 @@ import (
 	"ServiceManager/internal/app/server"
 	"ServiceManager/internal/config"
 	"ServiceManager/internal/repository/postgres"
-	"ServiceManager/internal/service/service_manager"
+	redisRepo "ServiceManager/internal/repository/redis"
+	service "ServiceManager/internal/service/auth"
+	"ServiceManager/internal/service/email"
+	"ServiceManager/internal/service/jwt"
+	"ServiceManager/internal/service/services"
 	"ServiceManager/internal/transport/handler"
 	"ServiceManager/migration"
 	"ServiceManager/pkg/closer"
@@ -37,20 +41,42 @@ func NewApp(ctx context.Context) *App {
 		logger.Error("migration migrate failed", "err", err)
 		return nil
 	}
-
-	repo, err := postgres.InitPostgres(ctx)
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Репозитории Postgres/Redis   ////////////////////////////////////////////////////////////////////////////////////
+	pool, err := postgres.InitPGPool(ctx)
 	if err != nil {
+		logger.Error("init postgres pool failed", "err", err)
 		return nil
 	}
-	clsr.Add("repository", func(ctx context.Context) error {
+	clsr.AddFunc("repository", pool.Close)
+
+	serviceRepo := postgres.NewServiceRepository(pool)
+	userRepo := postgres.NewUserRepository(pool)
+
+	//TODO: config доделать
+	redisClient, err := redisRepo.NewClient("192.168.3.92:6379", "", 0)
+	if err != nil {
+		logger.Error("init redis client failed", "err", err)
 		return nil
-	})
+	}
+	clsr.Add("redis repo", redisClient.Close)
 
-	service := service_manager.NewServiceManager(repo)
+	otpRepo := redisRepo.NewOTPRepository(redisClient.Client)
+	tokenRepo := redisRepo.NewTokenRepository(redisClient.Client)
 
-	handlers := handler.NewAPIHandler(ctx, service)
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Сервисы   ///////////////////////////////////////////////////////////////////////////////////////////////////////
+	//TODO: конфиг
+	jwtService := jwt.NewJWTService("aedfqefqw", 1*time.Hour, 2*time.Hour)
+	emailService := email.NewMockEmailService()
 
-	serv := server.NewWebHookServer(ctx, handlers)
+	servic := services.NewServiceManager(serviceRepo)
+	authService := service.NewAuthService(userRepo, otpRepo, tokenRepo, jwtService, emailService)
+
+	serviceHandlers := handler.NewAPIHandler(ctx, servic)
+	authHandlers := handler.NewAuthHandler(authService)
+
+	serv := server.NewWebHookServer(ctx, authService, authHandlers, serviceHandlers)
 	clsr.Add("server", serv.Shutdown)
 
 	return &App{

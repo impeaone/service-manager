@@ -26,7 +26,7 @@ func main() {
 
 	application := app.NewApp(ctx)
 
-	if err := application.Start(ctx); err != nil {
+	if err = application.Start(ctx); err != nil {
 		logger.Error("application error", "error", err.Error())
 	}
 	logger.Info("application shutdown successfully")

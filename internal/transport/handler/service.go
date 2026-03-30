@@ -2,6 +2,7 @@ package handler
 
 import (
 	"ServiceManager/internal/domain"
+	"ServiceManager/internal/middleware"
 	"ServiceManager/internal/service"
 	"ServiceManager/internal/transport/dto"
 	"ServiceManager/pkg/utils"
@@ -29,7 +30,13 @@ func NewAPIHandler(ctx context.Context, serviceManager service.ServiceManager) *
 	return &APIHandler{serviceManager: serviceManager, ctx: ctx}
 }
 
-func (a *APIHandler) GetServices(w http.ResponseWriter, _ *http.Request) {
+func (a *APIHandler) GetServices(w http.ResponseWriter, r *http.Request) {
+	user, err := middleware.GetUserFromContext(r.Context())
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	fmt.Println(user)
 	// Получаем все наши сервисы
 	services, err := a.serviceManager.GetAllServices()
 	if err != nil {
@@ -189,6 +196,12 @@ func (a *APIHandler) UpdateService(w http.ResponseWriter, r *http.Request) {
 	if err = json.Unmarshal(data, &servic); err != nil {
 		resp := map[string]interface{}{"error": err.Error()}
 		utils.SendJSON(w, resp, http.StatusBadRequest)
+		return
+	}
+
+	if servic.ID == "" {
+		resp := map[string]interface{}{"error": "invalid service id"}
+		utils.SendJSON(w, resp, http.StatusNotFound)
 		return
 	}
 

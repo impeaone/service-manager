@@ -1,4 +1,4 @@
-package service_manager
+package services
 
 import (
 	"ServiceManager/internal/domain"
@@ -75,7 +75,7 @@ func (s *ServiceManager) UpdateService(resp dto.ServiceResponse) (*domain.Servic
 		UpdatedAt: time.Now(),
 	}
 
-	if err := s.repo.Update(service); err != nil {
+	if err := s.repo.Update(context.TODO(), service); err != nil {
 		return nil, err
 	}
 
@@ -83,24 +83,23 @@ func (s *ServiceManager) UpdateService(resp dto.ServiceResponse) (*domain.Servic
 }
 
 func (s *ServiceManager) GetService(id string) (*domain.Service, error) {
-	return s.repo.GetByID(id)
+	return s.repo.GetByID(context.TODO(), id)
 }
 
 func (s *ServiceManager) GetAllServices() ([]*domain.Service, error) {
-	return s.repo.GetAll()
+	return s.repo.GetAll(context.TODO())
 }
 
 func (s *ServiceManager) DeleteService(serviceID string) error {
-	return s.repo.Delete(serviceID)
+	return s.repo.Delete(context.TODO(), serviceID)
 }
 
 func (s *ServiceManager) IncrementWebHook(serviceID, webhookID string) bool {
-	service, err := s.repo.GetByID(serviceID)
+	service, err := s.repo.GetByID(context.TODO(), serviceID)
 	if err != nil {
 		return false
 	}
 
-	// Находим веб-хук по пути
 	var targetHook *domain.WebHook
 	for _, hook := range service.WebHooks {
 		if hook.ID == webhookID {
@@ -113,8 +112,7 @@ func (s *ServiceManager) IncrementWebHook(serviceID, webhookID string) bool {
 		return false
 	}
 
-	// Инкрементируем счетчик вызовов
-	if err = s.repo.IncrementWebHookExecutions(serviceID, targetHook.ID); err != nil {
+	if err = s.repo.IncrementWebHookExecutions(context.TODO(), serviceID, targetHook.ID); err != nil {
 		return false
 	}
 
