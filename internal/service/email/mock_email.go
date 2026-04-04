@@ -11,7 +11,7 @@ func NewMockEmailService() *MockEmailService {
 	return &MockEmailService{}
 }
 
-func (s *MockEmailService) SendOTP(ctx context.Context, email, code, purpose string) error {
+func (s *MockEmailService) SendOTP(_ context.Context, email, code, purpose string) error {
 	fmt.Printf("Sending OTP %s to %s for %s\n", code, email, purpose)
 	return nil
 }
