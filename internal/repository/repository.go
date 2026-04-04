@@ -11,11 +11,11 @@ var (
 )
 
 type ServiceRepository interface {
-	Create(cxt context.Context, service *domain.Service) error
-	GetByID(ctx context.Context, serviceID string) (*domain.Service, error)
-	GetAll(ctx context.Context) ([]*domain.Service, error)
-	Update(ctx context.Context, service *domain.Service) error
-	Delete(ctx context.Context, serviceID string) error
+	Create(cxt context.Context, userID string, service *domain.Service) error
+	GetByID(ctx context.Context, userID, serviceID string) (*domain.Service, error)
+	GetAll(ctx context.Context, userID string) ([]*domain.Service, error)
+	Update(ctx context.Context, userID string, service *domain.Service) error
+	Delete(ctx context.Context, userID string, serviceID string) error
 
 	IncrementWebHookExecutions(ctx context.Context, serviceID, hookID string) error
 }

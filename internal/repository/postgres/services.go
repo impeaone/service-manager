@@ -42,7 +42,7 @@ func (p *ServiceRepository) Stop(ctx context.Context) error {
 	}
 }
 
-func (p *ServiceRepository) Create(ctx context.Context, service *domain.Service) error {
+func (p *ServiceRepository) Create(ctx context.Context, userID string, service *domain.Service) error {
 	tx, err := p.pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:   pgx.ReadCommitted,
 		AccessMode: pgx.ReadWrite,
@@ -66,7 +66,7 @@ func (p *ServiceRepository) Create(ctx context.Context, service *domain.Service)
 		return fmt.Errorf("service already exists")
 	}
 
-	err = p.insertService(ctx, tx, service)
+	err = p.insertService(ctx, tx, userID, service)
 	if err != nil {
 		return fmt.Errorf("failed to insert service: %w", err)
 	}
@@ -86,17 +86,17 @@ func (p *ServiceRepository) Create(ctx context.Context, service *domain.Service)
 	return nil
 }
 
-func (p *ServiceRepository) insertService(ctx context.Context, tx pgx.Tx, service *domain.Service) error {
+func (p *ServiceRepository) insertService(ctx context.Context, tx pgx.Tx, userID string, service *domain.Service) error {
 	query := `
-        INSERT INTO services (id, name, status)
-        VALUES ($1, $2, $3)
+        INSERT INTO services (id, name, status, user_id)
+        VALUES ($1, $2, $3, $4)
     `
 
 	if service.ID == "" {
 		service.ID = utils.GenerateUUID()
 	}
 
-	_, err := tx.Exec(ctx, query, service.ID, service.Name, service.Status)
+	_, err := tx.Exec(ctx, query, service.ID, service.Name, service.Status, userID)
 
 	return err
 }
@@ -137,7 +137,7 @@ func (p *ServiceRepository) insertWebhooks(ctx context.Context, tx pgx.Tx, servi
 	return nil
 }
 
-func (p *ServiceRepository) Update(ctx context.Context, service *domain.Service) error {
+func (p *ServiceRepository) Update(ctx context.Context, userID string, service *domain.Service) error {
 	tx, err := p.pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:   pgx.ReadCommitted,
 		AccessMode: pgx.ReadWrite,
@@ -154,11 +154,11 @@ func (p *ServiceRepository) Update(ctx context.Context, service *domain.Service)
 
 	query := `
         UPDATE services 
-        SET name = $2, status = $3, updated_at = NOW()
-        WHERE id = $1
+        SET name = $3, status = $4, updated_at = NOW()
+        WHERE id = $1 and user_id = $2;
     `
 
-	cmdTag, err := tx.Exec(ctx, query, service.ID, service.Name, service.Status)
+	cmdTag, err := tx.Exec(ctx, query, service.ID, userID, service.Name, service.Status)
 	if err != nil {
 		return fmt.Errorf("failed to update service: %w", err)
 	}
@@ -191,7 +191,7 @@ func (p *ServiceRepository) Update(ctx context.Context, service *domain.Service)
 	return nil
 }
 
-func (p *ServiceRepository) Delete(ctx context.Context, serviceID string) error {
+func (p *ServiceRepository) Delete(ctx context.Context, userID, serviceID string) error {
 	tx, err := p.pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:   pgx.ReadCommitted,
 		AccessMode: pgx.ReadWrite,
@@ -206,8 +206,8 @@ func (p *ServiceRepository) Delete(ctx context.Context, serviceID string) error 
 		}
 	}()
 
-	query := `DELETE FROM services WHERE id = $1`
-	cmdTag, err := tx.Exec(ctx, query, serviceID)
+	query := `DELETE FROM services WHERE id = $1 and user_id = $2;`
+	cmdTag, err := tx.Exec(ctx, query, serviceID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete service: %w", err)
 	}
@@ -244,14 +244,15 @@ func (p *ServiceRepository) IncrementWebHookExecutions(ctx context.Context, serv
 	return nil
 }
 
-func (p *ServiceRepository) GetAll(ctx context.Context) ([]*domain.Service, error) {
+func (p *ServiceRepository) GetAll(ctx context.Context, userID string) ([]*domain.Service, error) {
 	servicesQuery := `
         SELECT id, name, status, created_at, updated_at 
         FROM services 
+        WHERE user_id = $1
         ORDER BY created_at DESC
     `
 
-	rows, err := p.pool.Query(ctx, servicesQuery)
+	rows, err := p.pool.Query(ctx, servicesQuery, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query services: %w", err)
 	}
@@ -326,7 +327,7 @@ func (p *ServiceRepository) GetAll(ctx context.Context) ([]*domain.Service, erro
 	return services, nil
 }
 
-func (p *ServiceRepository) GetByID(ctx context.Context, serviceID string) (*domain.Service, error) {
+func (p *ServiceRepository) GetByID(ctx context.Context, userID, serviceID string) (*domain.Service, error) {
 	tx, err := p.pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:   pgx.ReadCommitted,
 		AccessMode: pgx.ReadOnly,
@@ -343,10 +344,11 @@ func (p *ServiceRepository) GetByID(ctx context.Context, serviceID string) (*dom
         SELECT id, name, status, created_at, updated_at 
         FROM services 
         WHERE id = $1
+        AND user_id = $2
     `
 
 	var service domain.Service
-	err = tx.QueryRow(ctx, serviceQuery, serviceID).Scan(
+	err = tx.QueryRow(ctx, serviceQuery, serviceID, userID).Scan(
 		&service.ID,
 		&service.Name,
 		&service.Status,

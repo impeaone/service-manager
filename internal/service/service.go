@@ -8,13 +8,13 @@ import (
 )
 
 type ServiceManager interface {
-	CreateService(response dto.ServiceResponse) (*domain.Service, error)
-	GetService(id string) (*domain.Service, error)
-	UpdateService(response dto.ServiceResponse) (*domain.Service, error)
-	DeleteService(id string) error
-	GetAllServices() ([]*domain.Service, error)
+	CreateService(ctx context.Context, response dto.ServiceResponse) (*domain.Service, error)
+	GetService(ctx context.Context, id string) (*domain.Service, error)
+	UpdateService(ctx context.Context, response dto.ServiceResponse) (*domain.Service, error)
+	DeleteService(ctx context.Context, id string) error
+	GetAllServices(ctx context.Context) ([]*domain.Service, error)
 
-	IncrementWebHook(serviceID, webhookID string) bool
+	IncrementWebHook(ctx context.Context, serviceID, webhookID string) bool
 }
 
 type ServiceEmail interface {

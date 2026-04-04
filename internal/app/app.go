@@ -92,7 +92,7 @@ func (app *App) Start(ctx context.Context) error {
 		return fmt.Errorf("app is nil")
 	}
 
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 1)
 
 	app.logger.Info("starting server", "addr", app.cfg.ServerEndpoint)
 	go func() {

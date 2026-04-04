@@ -2,7 +2,6 @@ package handler
 
 import (
 	"ServiceManager/internal/domain"
-	"ServiceManager/internal/middleware"
 	"ServiceManager/internal/service"
 	"ServiceManager/internal/transport/dto"
 	"ServiceManager/pkg/utils"
@@ -31,20 +30,13 @@ func NewAPIHandler(ctx context.Context, serviceManager service.ServiceManager) *
 }
 
 func (a *APIHandler) GetServices(w http.ResponseWriter, r *http.Request) {
-	user, err := middleware.GetUserFromContext(r.Context())
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	fmt.Println(user)
-	// Получаем все наши сервисы
-	services, err := a.serviceManager.GetAllServices()
+
+	services, err := a.serviceManager.GetAllServices(r.Context())
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	// Формируем ответ
 	response := dto.ServicesResponse{
 		Services: make([]dto.ServiceResponse, 0, len(services)),
 	}
@@ -87,7 +79,7 @@ func (a *APIHandler) GetService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	servic, err := a.serviceManager.GetService(serviceID)
+	servic, err := a.serviceManager.GetService(r.Context(), serviceID)
 	if err != nil {
 		resp := map[string]interface{}{"error": err.Error()}
 		utils.SendJSON(w, resp, http.StatusNotFound)
@@ -126,7 +118,7 @@ func (a *APIHandler) DeleteService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := a.serviceManager.DeleteService(serviceID); err != nil {
+	if err := a.serviceManager.DeleteService(r.Context(), serviceID); err != nil {
 		resp := map[string]interface{}{"error": err.Error()}
 		utils.SendJSON(w, resp, http.StatusInternalServerError)
 		return
@@ -153,7 +145,7 @@ func (a *APIHandler) AddService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Сохраняем новый сервис (и получаем его уже с id)
-	newService, err := a.serviceManager.CreateService(servic)
+	newService, err := a.serviceManager.CreateService(r.Context(), servic)
 	if err != nil {
 		resp := map[string]interface{}{"error": err.Error()}
 		utils.SendJSON(w, resp, http.StatusBadRequest)
@@ -205,7 +197,7 @@ func (a *APIHandler) UpdateService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updService, err := a.serviceManager.UpdateService(servic)
+	updService, err := a.serviceManager.UpdateService(r.Context(), servic)
 	if err != nil {
 		resp := map[string]interface{}{"error": err.Error()}
 		utils.SendJSON(w, resp, http.StatusBadRequest)
@@ -249,7 +241,7 @@ func (a *APIHandler) ExecuteWebHook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serv, err := a.serviceManager.GetService(serviceID)
+	serv, err := a.serviceManager.GetService(r.Context(), serviceID)
 	if err != nil {
 		resp := map[string]interface{}{"error": err.Error()}
 		utils.SendJSON(w, resp, http.StatusBadRequest)
@@ -276,7 +268,7 @@ func (a *APIHandler) ExecuteWebHook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		_ = a.serviceManager.IncrementWebHook(serviceID, hookID)
+		_ = a.serviceManager.IncrementWebHook(r.Context(), serviceID, hookID)
 	}()
 
 	utils.SendJSON(w, req, http.StatusOK)

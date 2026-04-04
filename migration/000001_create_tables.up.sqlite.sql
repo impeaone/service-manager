@@ -18,6 +18,18 @@ CREATE TABLE IF NOT EXISTS webhooks (
     FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT,
+    is_verified INTEGER DEFAULT 0,
+    created_at DATETIME,
+    updated_at DATETIME
+    );
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_is_verified ON users(is_verified);
+
 CREATE INDEX IF NOT EXISTS idx_services_name ON services(name);
 CREATE INDEX IF NOT EXISTS idx_services_status ON services(status);
 

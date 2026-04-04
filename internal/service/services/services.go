@@ -2,6 +2,7 @@ package services
 
 import (
 	"ServiceManager/internal/domain"
+	"ServiceManager/internal/middleware"
 	"ServiceManager/internal/repository"
 	"ServiceManager/internal/transport/dto"
 	"ServiceManager/pkg/utils"
@@ -17,8 +18,14 @@ func NewServiceManager(repo repository.ServiceRepository) *ServiceManager {
 	return &ServiceManager{repo}
 }
 
-func (s *ServiceManager) CreateService(resp dto.ServiceResponse) (*domain.Service, error) {
+func (s *ServiceManager) CreateService(ctx context.Context, resp dto.ServiceResponse) (*domain.Service, error) {
 	webhooks := make([]domain.WebHook, len(resp.WebHooks))
+
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	for i, respHook := range resp.WebHooks {
 		webhooks[i] = domain.WebHook{
 			ID:         utils.GenerateUUID(),
@@ -39,15 +46,20 @@ func (s *ServiceManager) CreateService(resp dto.ServiceResponse) (*domain.Servic
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	if err := s.repo.Create(context.TODO(), service); err != nil {
+	if err := s.repo.Create(ctx, user.ID, service); err != nil {
 		return nil, err
 	}
 
 	return service, nil
 }
 
-func (s *ServiceManager) UpdateService(resp dto.ServiceResponse) (*domain.Service, error) {
+func (s *ServiceManager) UpdateService(ctx context.Context, resp dto.ServiceResponse) (*domain.Service, error) {
 	webhooks := make([]domain.WebHook, len(resp.WebHooks))
+
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	for i, respHook := range resp.WebHooks {
 		var id = respHook.ID
@@ -75,27 +87,50 @@ func (s *ServiceManager) UpdateService(resp dto.ServiceResponse) (*domain.Servic
 		UpdatedAt: time.Now(),
 	}
 
-	if err := s.repo.Update(context.TODO(), service); err != nil {
+	if err := s.repo.Update(ctx, user.ID, service); err != nil {
 		return nil, err
 	}
 
 	return service, nil
 }
 
-func (s *ServiceManager) GetService(id string) (*domain.Service, error) {
-	return s.repo.GetByID(context.TODO(), id)
+func (s *ServiceManager) GetService(ctx context.Context, id string) (*domain.Service, error) {
+
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.repo.GetByID(ctx, user.ID, id)
 }
 
-func (s *ServiceManager) GetAllServices() ([]*domain.Service, error) {
-	return s.repo.GetAll(context.TODO())
+func (s *ServiceManager) GetAllServices(ctx context.Context) ([]*domain.Service, error) {
+
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.repo.GetAll(ctx, user.ID)
 }
 
-func (s *ServiceManager) DeleteService(serviceID string) error {
-	return s.repo.Delete(context.TODO(), serviceID)
+func (s *ServiceManager) DeleteService(ctx context.Context, serviceID string) error {
+
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return s.repo.Delete(ctx, user.ID, serviceID)
 }
 
-func (s *ServiceManager) IncrementWebHook(serviceID, webhookID string) bool {
-	service, err := s.repo.GetByID(context.TODO(), serviceID)
+func (s *ServiceManager) IncrementWebHook(ctx context.Context, serviceID, webhookID string) bool {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return false
+	}
+
+	service, err := s.repo.GetByID(ctx, user.ID, serviceID)
 	if err != nil {
 		return false
 	}
@@ -112,7 +147,7 @@ func (s *ServiceManager) IncrementWebHook(serviceID, webhookID string) bool {
 		return false
 	}
 
-	if err = s.repo.IncrementWebHookExecutions(context.TODO(), serviceID, targetHook.ID); err != nil {
+	if err = s.repo.IncrementWebHookExecutions(ctx, serviceID, targetHook.ID); err != nil {
 		return false
 	}
 
